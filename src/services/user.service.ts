@@ -8,7 +8,6 @@ export const getMyProfile = async (): Promise<ApiResponse<User>> => {
 };
 
 // ─── Update My Profile (JSON body) ───────────────────────────────────────────
-// API accepts: { firstName, lastName, phoneNumber, avatarTempMediaId }
 export const updateMyProfile = async (payload: {
   firstName?: string;
   lastName?: string;
@@ -17,24 +16,56 @@ export const updateMyProfile = async (payload: {
   avatarTempMediaId?: string;
 }): Promise<ApiResponse<User>> => {
   const res = await apiClient.put('/user/update-me', payload);
+  if (res.data?.success && res.data?.data) {
+    localStorage.setItem('user', JSON.stringify(res.data.data));
+    window.dispatchEvent(new CustomEvent('user:updated', { detail: res.data.data }));
+  }
   return res.data;
 };
 
-// ─── Update Avatar (upload temp media first, then update profile) ─────────────
-// Step 1: upload file to /temp-media/upload → get tempMediaId
-// Step 2: call updateMyProfile with avatarTempMediaId
+// ─── Update Avatar ────────────────────────────────────────────────────────────
 export const updateAvatar = async (profileImage: File): Promise<ApiResponse<User>> => {
-  // Step 1: Upload to temp-media
+  // ── Step 1: upload to temp-media ─────────────────────────────────────────
   const formData = new FormData();
   formData.append('file', profileImage);
   formData.append('context', 'avatar');
+
   const uploadRes = await apiClient.post('/temp-media/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  const tempMediaId: string = uploadRes.data?.data?.id ?? uploadRes.data?.data?._id;
 
-  // Step 2: Update profile with the temp media ID
+  // Log full response so you can see exact shape in browser console
+  console.log('[updateAvatar] temp-media upload full response:', JSON.stringify(uploadRes.data));
+
+  // Try every possible nesting the API might use
+  const d = uploadRes.data;
+  const tempMediaId: string =
+    d?.data?.id ??
+    d?.data?._id ??
+    d?.data?.tempMediaId ??
+    d?.data?.mediaId ??
+    d?.id ??
+    d?._id ??
+    d?.tempMediaId ??
+    d?.mediaId;
+
+  console.log('[updateAvatar] extracted tempMediaId:', tempMediaId);
+
+  if (!tempMediaId) {
+    // Show the actual API response shape in the error so you can fix it
+    throw new Error(
+      `Avatar upload failed: could not find ID in response. Response was: ${JSON.stringify(d)}`
+    );
+  }
+
+  // ── Step 2: update profile with avatarTempMediaId ────────────────────────
   const res = await apiClient.put('/user/update-me', { avatarTempMediaId: tempMediaId });
+
+  if (res.data?.success && res.data?.data) {
+    localStorage.setItem('user', JSON.stringify(res.data.data));
+    window.dispatchEvent(new CustomEvent('user:updated', { detail: res.data.data }));
+  }
+
   return res.data;
 };
 
