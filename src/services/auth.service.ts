@@ -1,4 +1,4 @@
-import apiClient from '@/lib/axios';
+import apiClient, { CustomAxiosRequestConfig } from '@/lib/axios';
 import {
   ApiResponse,
   RegisterResponse,
@@ -187,7 +187,7 @@ export const verifyForgotPasswordOTP = async (payload: {
           token: storedToken, // Header এ token
         },
         skipAuth: true,
-      }
+      } as unknown as CustomAxiosRequestConfig
     );
     
     console.log('📦 2. Verify OTP Full Response:', res.data);
@@ -239,7 +239,7 @@ export const resetPassword = async (payload: {
           token: payload.resetToken, // Header এ token
         },
         skipAuth: true,
-      }
+      } as unknown as CustomAxiosRequestConfig
     );
     
     console.log('📦 3. Reset Password Full Response:', res.data);

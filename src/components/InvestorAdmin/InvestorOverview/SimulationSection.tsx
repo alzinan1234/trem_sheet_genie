@@ -69,72 +69,45 @@ export default function SimulationSection({ onSimulationOpen, onSimulationClose 
     fetchData();
   }, []);
 
- const handleCardClick = async (simulation: Simulation) => {
-  // 1. Try to load stored step data for THIS simulation
-  let storedData: any = null;
-  try {
-    const raw =
-      sessionStorage.getItem(`sim_data_${simulation.id}`) ||
-      sessionStorage.getItem('simulationData');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // Only use if it belongs to this simulation
-      if (parsed?.simulationId === simulation.id) {
-        storedData = parsed;
-      }
-    }
-  } catch {}
-
-  // 2. Fetch full simulation detail from API (has all saved fields)
-  let fullSimulation: any = simulation;
-  try {
-    const res = await getSimulationById(simulation.id);
-    if (res.success && res.data) fullSimulation = res.data;
-  } catch {}
-
-  // 3. Resolve fund object
-  let fund: any =
-    storedData?.fund ||
-    fullSimulation.fund ||
-    null;
-
-  if (!fund) {
+  const handleCardClick = async (simulation: Simulation) => {
+    // Load the full simulation input data (steps 1-4) from sessionStorage/localStorage
+    // and merge it with the simulation metadata so SimulationResults has everything it needs
+    let storedData: any = null;
     try {
-      const fundRes = await getFunds({ page: 1, limit: 50 });
-      if (fundRes.success) {
-        const name =
-          storedData?.fundName ||
-          fullSimulation.fund?.fundName;
-        fund = ((fundRes.data as any) || []).find(
-          (f: any) => f.fundName === name
-        ) || null;
-      }
+      const raw = sessionStorage.getItem('simulationData') || localStorage.getItem('tsg_simulation_data');
+      if (raw) storedData = JSON.parse(raw);
     } catch {}
-  }
 
-  // 4. Merge: API data is the base, stored form data fills in step fields
-  const mergedData = {
-    // API fields
-    ...fullSimulation,
-    // Step 1–4 form fields (override if stored)
-    ...(storedData ?? {}),
-    // Always keep these canonical
-    id: simulation.id,
-    name: simulation.name,
-    description: simulation.description,
-    fund,
-    fundName:
-      storedData?.fundName ||
-      fullSimulation.fund?.fundName || '',
-    portfolioCompany:
-      storedData?.portfolioCompany ||
-      fullSimulation.startup?.name || '',
+    // Fetch fund object for this simulation so breakeven/simulate calls work
+    let fund: any = storedData?.fund || simulation.fund || null;
+    if (!fund && (storedData?.fundName || simulation.fund?.fundName)) {
+      try {
+        const fundRes = await getFunds();
+        if (fundRes.success) {
+          const name = storedData?.fundName || simulation.fund?.fundName;
+          fund = ((fundRes.data as any) || []).find((f: any) => f.fundName === name) || null;
+        }
+      } catch {}
+    }
+
+    // Only merge sessionStorage data if it belongs to this simulation
+    const isMatchingSimulation = storedData?.simulationId === simulation.id;
+    const mergedData = {
+      ...simulation,
+      ...(isMatchingSimulation ? storedData : {}),
+      fund,
+      // Always keep simulation metadata
+      id: simulation.id,
+      name: simulation.name,
+      description: simulation.description,
+      fundName: storedData?.fundName || simulation.fund?.fundName || '',
+      portfolioCompany: storedData?.portfolioCompany || simulation.startup?.name || '',
+    };
+
+    setSelectedSimulation(mergedData);
+    setShowResults(true);
+    onSimulationOpen?.();
   };
-
-  setSelectedSimulation(mergedData);
-  setShowResults(true);
-  onSimulationOpen?.();
-};
 
   const handleModalSubmit = async (data: NewSimulationModalData) => {
     setIsCreating(true);
