@@ -110,8 +110,16 @@ function buildChartData(investorPoints: any[], founderPoints: any[]) {
 //   data.round_to_investment_class.<round_key>.share_class_investment_rounds[0].vc_shares × 1,000,000
 //   data.round_to_investment_class.<round_key>.price_per_share × 1,000,000
 function extractCapTableRows(capRes: any) {
-  if (!capRes) return [];
+  if (!capRes) {
+    console.log('[CapTable] No capRes');
+    return [];
+  }
+  
   const d = capRes?.data ?? capRes;
+  if (!d || Object.keys(d).length === 0) {
+    console.log('[CapTable] Empty data');
+    return [];
+  }
 
   const founderShares = Math.round((d?.founder_shares ?? 0) * 1_000_000);
   const uncommitted = Math.round((d?.uncommitted_options_at_round_end ?? 0) * 1_000_000);
@@ -119,23 +127,52 @@ function extractCapTableRows(capRes: any) {
   const roundToInv = d?.round_to_investment_class || {};
 
   const rows: any[] = [];
-  if (founderShares > 0) rows.push({ name: 'Founders', shares: founderShares, type: 'Common Stock' });
-  if (uncommitted > 0) rows.push({ name: 'Unallocated Options', shares: uncommitted, type: 'Options' });
-  if (committed > 0) rows.push({ name: 'Allocated Options', shares: committed, type: 'Options' });
+  
+  if (founderShares > 0) {
+    rows.push({ name: 'Founders', shares: founderShares, type: 'Common Stock', pricePerShare: null });
+  }
+  if (uncommitted > 0) {
+    rows.push({ name: 'Unallocated Options', shares: uncommitted, type: 'Options', pricePerShare: null });
+  }
+  if (committed > 0) {
+    rows.push({ name: 'Allocated Options', shares: committed, type: 'Options', pricePerShare: null });
+  }
 
+  // Process each round - take ONLY share_class_investment_rounds[0]
   Object.entries(roundToInv).forEach(([roundId, roundData]: [string, any]) => {
     const shareClasses = roundData?.share_class_investment_rounds || [];
-    const pricePerShare = Math.round((roundData?.price_per_share ?? 0) * 1_000_000 * 100) / 100;
-    shareClasses.forEach((sc: any) => {
+    const pricePerShare = (roundData?.price_per_share ?? 0) * 1_000_000;
+    
+    if (shareClasses.length > 0) {
+      const sc = shareClasses[0];
       const vcShares = Math.round((sc?.vc_shares ?? 0) * 1_000_000);
-      if (vcShares > 0) {
-        rows.push({ name: roundId, shares: vcShares, type: 'Preferred', pricePerShare });
+      const investmentId = sc?.id || '';
+      
+      if (vcShares > 0 && vcShares < 1_000_000_000) {
+        let displayName = roundId;
+        if (investmentId === 'Round A') displayName = 'Series A';
+        else if (investmentId === 'Round B') displayName = 'Series B';
+        else if (investmentId === 'Round C') displayName = 'Series C';
+        else if (!roundId.includes('-')) {
+          displayName = roundId.split('_').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' ');
+        }
+        
+        rows.push({ 
+          name: displayName, 
+          shares: vcShares, 
+          type: 'Preferred', 
+          pricePerShare: pricePerShare > 0 ? pricePerShare : null 
+        });
       }
-    });
+    }
   });
 
-  const totalShares = rows.reduce((s, r) => s + r.shares, 0);
-  rows.forEach(r => { r.ownership = totalShares > 0 ? (r.shares / totalShares * 100).toFixed(2) + '%' : '0%'; });
+  const totalShares = rows.reduce((sum, row) => sum + row.shares, 0);
+  rows.forEach(row => {
+    row.ownership = totalShares > 0 ? ((row.shares / totalShares) * 100).toFixed(2) + '%' : '0%';
+  });
 
   return rows;
 }
@@ -197,60 +234,60 @@ const SimulationResults: React.FC<ResultsProps> = ({ data, onStepBack }) => {
     }
   };
 
-  // ── Exit Breakdown ──────────────────────────────────────────────────────────
-  const handleExitBreakdown = async () => {
-    setIsCalcExit(true);
-    const toastId = toast.loading('Calculating exit breakdown...');
-    try {
-      // Convert [{x,y}] → [[x,y]] with strictly ascending x deduplication
-      // API requires founderPoints/investorPoints x values to be strictly ascending
-      const toArray = (pts: any[]): [number, number][] => {
-        const arr = pts.map((p: any) => [+(p.x ?? p[0] ?? 0), +(p.y ?? p[1] ?? 0)] as [number, number]);
-        const deduped: [number, number][] = [];
-        let lastX = -Infinity;
-        for (const pt of arr) {
-          if (pt[0] > lastX) {
-            deduped.push(pt);
-            lastX = pt[0];
-          }
+// ── Exit Breakdown ──────────────────────────────────────────────────────────
+const handleExitBreakdown = async () => {
+  setIsCalcExit(true);
+  const toastId = toast.loading('Calculating exit breakdown...');
+  try {
+    // Convert [{x,y}] → [[x,y]] with strictly ascending x deduplication
+    const toArray = (pts: any[]): [number, number][] => {
+      const arr = pts.map((p: any) => [+(p.x ?? p[0] ?? 0), +(p.y ?? p[1] ?? 0)] as [number, number]);
+      const deduped: [number, number][] = [];
+      let lastX = -Infinity;
+      for (const pt of arr) {
+        if (pt[0] > lastX) {
+          deduped.push(pt);
+          lastX = pt[0];
         }
-        return deduped;
-      };
-      let investorExitDetails: any[] = [];
-
-      if (!hasDebtOrSafe) {
-        // Phase 1
-        investorExitDetails = [{
-          name: pricedRounds[0]?.roundName || 'series-a',
-          investmentAmount: Number(pricedRounds[0]?.investmentAmount || 0) / 1_000_000,
-          performanceFee: Number(data?.carryPercentage || data?.fund?.carryPercentage || 20) / 100,
-          investorPoints: toArray(parsed.investorPoints),
-        }];
-      } else {
-        // Phase 2 — one entry per investor_results key
-        investorExitDetails = Object.entries(rawData.investor_results || {}).map(([id, r]: [string, any]) => ({
-          name: id,
-          investmentAmount: id.startsWith('debt') || id.startsWith('safe')
-            ? Number(safeNotes.find((s: any) => s.id === id)?.amount || debtRounds.find((d: any) => d.id === id)?.principalAmount || 0) / 1_000_000
-            : Number(pricedRounds[pricedRounds.length - 1]?.investmentAmount || 0) / 1_000_000,
-          performanceFee: id.startsWith('debt') || id.startsWith('safe') ? 0 : Number(data?.fund?.carryPercentage || 20) / 100,
-          investorPoints: toArray(r?.investor_portfolio?.points || []),
-        }));
       }
+      return deduped;
+    };
+    let investorExitDetails: any[] = [];
 
-      const res = await calculateExitBreakdown({
-        exitValue,
-        investorExitDetails,
-        founderPoints: toArray(parsed.founderPoints),
-      });
-      setExitBreakdownResult(res?.data ?? res);
-      toast.success('Exit breakdown calculated!', { id: toastId });
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Exit breakdown failed', { id: toastId });
-    } finally {
-      setIsCalcExit(false);
+    if (!hasDebtOrSafe) {
+      // Phase 1
+      investorExitDetails = [{
+        name: pricedRounds[0]?.roundName || 'series-a',
+        investmentAmount: Number(pricedRounds[0]?.investmentAmount || 0) / 1_000_000,
+        performanceFee: Number(data?.carryPercentage || data?.fund?.carryPercentage || 20) / 100,
+        investorPoints: toArray(parsed.investorPoints),
+      }];
+    } else {
+      // Phase 2 — one entry per investor_results key
+      investorExitDetails = Object.entries(rawData.investor_results || {}).map(([id, r]: [string, any]) => ({
+        name: id,
+        investmentAmount: id.startsWith('debt') || id.startsWith('safe')
+          ? Number(safeNotes.find((s: any) => s.id === id)?.amount || debtRounds.find((d: any) => d.id === id)?.principalAmount || 0) / 1_000_000
+          : Number(pricedRounds[pricedRounds.length - 1]?.investmentAmount || 0) / 1_000_000,
+        performanceFee: id.startsWith('debt') || id.startsWith('safe') ? 0 : Number(data?.fund?.carryPercentage || 20) / 100,
+        investorPoints: toArray(r?.investor_portfolio?.points || []),
+      }));
     }
-  };
+
+    // ✅ FIX: exitValue ÷ 1,000,000 (API expects $M)
+    const res = await calculateExitBreakdown({
+      exitValue: exitValue / 1_000_000,
+      investorExitDetails,
+      founderPoints: toArray(parsed.founderPoints),
+    });
+    setExitBreakdownResult(res?.data ?? res);
+    toast.success('Exit breakdown calculated!', { id: toastId });
+  } catch (err: any) {
+    toast.error(err?.response?.data?.message || 'Exit breakdown failed', { id: toastId });
+  } finally {
+    setIsCalcExit(false);
+  }
+};
 
   // ── Breakeven ───────────────────────────────────────────────────────────────
   const handleBreakeven = async () => {

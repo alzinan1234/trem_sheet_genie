@@ -169,8 +169,8 @@ function ValidationErrorPanel({ issues, onBack }: { issues: ValidationIssue[]; o
         <div className="bg-red-50 px-6 py-5 border-b border-red-100 flex items-start gap-4">
           <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2L1 17h18L10 2z" stroke="#ef4444" strokeWidth="1.5" fill="#fee2e2"/>
-              <path d="M10 8v4M10 14h.01" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M10 2L1 17h18L10 2z" stroke="#ef4444" strokeWidth="1.5" fill="#fee2e2" />
+              <path d="M10 8v4M10 14h.01" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
           <div>
@@ -191,7 +191,7 @@ function ValidationErrorPanel({ issues, onBack }: { issues: ValidationIssue[]; o
               <div key={step} className="px-6 py-5">
                 <div className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border mb-4 ${stepColors[step] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                   {step === 'Fund Settings' && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 0a6 6 0 100 12A6 6 0 006 0zm0 1a5 5 0 110 10A5 5 0 016 1zm-.5 2.5v4l3 1.5.5-1-2.5-1.25V3.5h-1z"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 0a6 6 0 100 12A6 6 0 006 0zm0 1a5 5 0 110 10A5 5 0 016 1zm-.5 2.5v4l3 1.5.5-1-2.5-1.25V3.5h-1z" /></svg>
                   )}
                   {step}
                 </div>
@@ -238,8 +238,8 @@ function ApiErrorPanel({ message, onBack }: { message: string; onBack: () => voi
       <div className="bg-white p-8 rounded-2xl border border-red-100 shadow-sm max-w-lg w-full text-center">
         <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <path d="M16 3L2 28h28L16 3z" stroke="#ef4444" strokeWidth="2" fill="#fee2e2"/>
-            <path d="M16 13v6M16 22h.01" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M16 3L2 28h28L16 3z" stroke="#ef4444" strokeWidth="2" fill="#fee2e2" />
+            <path d="M16 13v6M16 22h.01" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </div>
         <h2 className="text-xl font-bold text-[#101828] mb-2">Simulation Error</h2>
@@ -253,6 +253,21 @@ function ApiErrorPanel({ message, onBack }: { message: string; onBack: () => voi
       </div>
     </div>
   );
+}
+
+// ─── Strip fund params from a round object ────────────────────────────────────
+function stripFundParams(round: any): any {
+  const { 
+    committed_capital, 
+    commitment_period, 
+    commitment_period_mgmt_fee,
+    post_commitment_period_mgmt_fee, 
+    performance_fee, 
+    moic, 
+    fund_lifetime, 
+    ...clean 
+  } = round;
+  return clean;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -286,7 +301,7 @@ function SimulationResultsPageContent() {
     } else {
       setIsCalculating(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runSimulation = async (data: any) => {
@@ -355,22 +370,55 @@ function SimulationResultsPageContent() {
         return debtSeniorityList.length + 1;
       };
 
-      // ── Build rounds (pass fund object for fund params) ────────────────────
-      const builtPricedRounds = pricedRounds.map((r: any) =>
-        buildPricedRound(r, getEquitySeniority(r.roundName || r.name || ''), fund)
-      );
+      // ── Build rounds ──────────────────────────────────────────────────────
+      // ✅ FIX: Build ALL priced rounds first (WITHOUT fund params for past rounds)
+      const builtPricedRounds = pricedRounds.map((r: any, idx: number) => {
+        // Ensure ownership has a valid value
+        let ownershipValue = Number(r.ownership);
+        let ownershipType = r.ownershipType || '%';
 
+        if (isNaN(ownershipValue) || ownershipValue <= 0) {
+          console.warn(`[Fix] Round ${r.roundName} had invalid ownership: ${r.ownership}, setting to 20%`);
+          ownershipValue = 20;
+          ownershipType = '%';
+        }
+
+        const fixedRound = {
+          ...r,
+          ownership: ownershipValue,
+          ownershipType: ownershipType,
+          investmentAmount: Number(r.investmentAmount) || 2000000
+        };
+
+        // ✅ FIX: Only pass fund for the LAST round (currentRound)
+        const isCurrentRound = idx === pricedRounds.length - 1;
+        return buildPricedRound(fixedRound, idx + 1, isCurrentRound ? fund : null);
+      });
+
+      // Current round = last one (has fund params)
       const currentPricedRound = builtPricedRounds[builtPricedRounds.length - 1];
+
+      // Past priced rounds = all except last (strip fund params)
       const pastPricedRounds = builtPricedRounds.slice(0, builtPricedRounds.length - 1);
+      
+      // ✅ FIX: Strip fund params from past priced rounds (belt + suspenders)
+      const pastPricedRoundsClean = pastPricedRounds.map((r: any) => stripFundParams(r));
+
+      // Build debt rounds (no fund params)
       const builtDebtRounds = debtRounds.map((d: any) =>
         buildDebtRound(d, getDebtSeniority(d.roundName || d.name || ''))
       );
-      const pastRoundsForSimulate = [...pastPricedRounds, ...builtDebtRounds];
+
+      // ✅ FIX: Combine clean past rounds + debt rounds
+      const pastRoundsForSimulate = [...pastPricedRoundsClean, ...builtDebtRounds];
+
+      // ── Build clean priced rounds for cap table (ALL without fund params) ──
+      const cleanPricedRoundsForCapTable = builtPricedRounds.map((r: any) => stripFundParams(r));
 
       // ── Cap Table call ─────────────────────────────────────────────────────
       const capTableBody = hasMultiplePricedRounds
-        ? buildCapTableRequestMultiRound(data, builtPricedRounds, safeNotes)
-        : buildCapTableRequest(data, currentPricedRound, safeNotes);
+        ? buildCapTableRequestMultiRound(data, cleanPricedRoundsForCapTable, safeNotes)
+        : buildCapTableRequest(data, cleanPricedRoundsForCapTable[0], safeNotes);
 
       console.log('[CapTable Request]', JSON.stringify(capTableBody, null, 2));
       const capRes = await createCapTable(capTableBody).catch(e => {

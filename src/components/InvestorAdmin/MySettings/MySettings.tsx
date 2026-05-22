@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { getMyProfile, updateMyProfile } from '@/services/user.service';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Camera } from 'lucide-react';
+import { getMyProfile, updateMyProfile, updateAvatar } from '@/services/user.service';
 import { getNotificationSettings, updateNotificationSettings } from '@/services/notification.service';
 import { changePassword, logout, logoutAllDevices, toggle2FA } from '@/services/auth.service';
 import { User, NotificationSettings } from '@/types';
@@ -40,6 +40,8 @@ const UserSettingsView = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,10 +57,36 @@ const UserSettingsView = () => {
     fetchData();
   }, []);
 
+  // ─── Avatar Upload ──────────────────────────────────────────────────────────
+  // Flow: select file → POST /temp-media/upload → get avatarTempMediaId
+  //       → PUT /user/update-me { avatarTempMediaId } → update local state
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await updateAvatar(file);
+      if (res.success) {
+        setUser(res.data);
+        setSuccess('Profile picture updated!');
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to update avatar');
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset input so the same file can be re-selected
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  // ─── Contact Save ───────────────────────────────────────────────────────────
+  // PUT /user/update-me with JSON { phoneNumber }
   const handleSaveContact = async () => {
     setIsSaving(true); setError(''); setSuccess('');
     try {
-      const res = await updateMyProfile({ data: { phoneNumber: contactInfo.phone } });
+      const res = await updateMyProfile({ phoneNumber: contactInfo.phone });
       if (res.success) { setUser(res.data); setIsEditingContact(false); setSuccess('Contact updated!'); }
     } catch (err: any) { setError(err?.response?.data?.message || 'Update failed'); }
     finally { setIsSaving(false); }
@@ -100,8 +128,54 @@ const UserSettingsView = () => {
       {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
       {success && <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-600 text-sm">{success}</div>}
 
+      {/* ── Profile Information ─────────────────────────────────────────────── */}
       <section className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
         <h2 className="text-lg font-bold mb-6">Profile Information</h2>
+
+        {/* Avatar upload — hidden input triggered by clicking the avatar circle */}
+        <div className="flex items-center gap-5 mb-6">
+          <div className="relative w-16 h-16 flex-shrink-0">
+            {user?.avatar ? (
+              <img src={user.avatar} alt="avatar" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-[#E9EDF5] flex items-center justify-center text-2xl font-bold text-[#4F46E5]">
+                {user?.firstName?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute bottom-0 right-0 w-6 h-6 bg-[#2D60FF] rounded-full flex items-center justify-center shadow-md hover:opacity-90 disabled:opacity-50 transition"
+              title="Change profile picture"
+            >
+              {isUploadingAvatar
+                ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Camera size={12} color="white" />
+              }
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">{user?.firstName} {user?.lastName}</p>
+            <p className="text-xs text-gray-400">{user?.email}</p>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="text-[10px] text-[#4F46E5] font-semibold mt-1 hover:underline disabled:opacity-50"
+            >
+              {isUploadingAvatar ? 'Uploading…' : 'Change photo'}
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <ReadOnlyInput label="FIRST NAME" value={user?.firstName || '—'} />
           <ReadOnlyInput label="LAST NAME" value={user?.lastName || '—'} />
@@ -111,6 +185,7 @@ const UserSettingsView = () => {
         </div>
       </section>
 
+      {/* ── Contact Information ─────────────────────────────────────────────── */}
       <section className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold">Contact Information</h2>
@@ -139,6 +214,7 @@ const UserSettingsView = () => {
         </div>
       </section>
 
+      {/* ── Security ────────────────────────────────────────────────────────── */}
       <section className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
         <h2 className="text-lg font-bold mb-6">Security</h2>
         <div className="space-y-6">
@@ -171,6 +247,7 @@ const UserSettingsView = () => {
         </div>
       </section>
 
+      {/* ── Notifications ───────────────────────────────────────────────────── */}
       <section className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
         <h2 className="text-lg font-bold mb-6">Notifications</h2>
         <div className="space-y-6">

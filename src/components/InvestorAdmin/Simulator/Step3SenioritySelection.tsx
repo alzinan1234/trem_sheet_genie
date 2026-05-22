@@ -15,21 +15,28 @@ const Step3SenioritySelection: React.FC<Step3Props> = ({ data, onContinue, onSte
   const [equityInstruments, setEquityInstruments] = useState<string[]>([]);
 
   useEffect(() => {
-    const initialDebt = Array.isArray(data?.debt) && Array.isArray(data?.debt[0])
+    // Build real instrument lists from data
+    const pricedRoundNames: string[] = (data?.pricedRounds || []).map((r: any) => r.roundName || r.name || '').filter(Boolean);
+    const debtRoundNames: string[] = (data?.debtRounds || []).map((d: any) => d.roundName || d.name || '').filter(Boolean);
+
+    // Debt seniority — each debt round starts as its own level
+    const initialDebt: string[][] = Array.isArray(data?.debt) && Array.isArray(data?.debt[0])
       ? data.debt
-      : [['Senior Debt'], ['Junior Debt'], ['Junior Subordinated Debt']];
-    const initialEquity = Array.isArray(data?.equity) && Array.isArray(data?.equity[0]) 
-      ? data.equity 
-      : [['Series D'], ['Series B', 'Series C'], ['Series A']];
-    
-    // Count total instruments (flatten the arrays)
-    const debtFlat = initialDebt.flat();
-    const equityFlat = initialEquity.flat();
-    
+      : debtRoundNames.length > 0
+        ? debtRoundNames.map(n => [n])
+        : [];
+
+    // Equity seniority — each priced round starts as its own level
+    const initialEquity: string[][] = Array.isArray(data?.equity) && Array.isArray(data?.equity[0])
+      ? data.equity
+      : pricedRoundNames.length > 0
+        ? pricedRoundNames.map(n => [n])
+        : [];
+
     setDebtSeniority(initialDebt);
     setEquitySeniority(initialEquity);
-    setDebtInstruments(debtFlat);
-    setEquityInstruments(equityFlat);
+    setDebtInstruments(initialDebt.flat());
+    setEquityInstruments(initialEquity.flat());
   }, [data]);
 
   // --- Validation Functions ---

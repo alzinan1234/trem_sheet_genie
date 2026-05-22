@@ -7,32 +7,34 @@ export const getMyProfile = async (): Promise<ApiResponse<User>> => {
   return res.data;
 };
 
-// ─── Update My Profile (form-data: profileImage file + data JSON) ─────────────
+// ─── Update My Profile (JSON body) ───────────────────────────────────────────
+// API accepts: { firstName, lastName, phoneNumber, avatarTempMediaId }
 export const updateMyProfile = async (payload: {
-  data?: Partial<Pick<User, 'firstName' | 'lastName' | 'phoneNumber' | 'username'>>;
-  profileImage?: File;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  username?: string;
+  avatarTempMediaId?: string;
 }): Promise<ApiResponse<User>> => {
-  const formData = new FormData();
-  if (payload.profileImage) {
-    formData.append('profileImage', payload.profileImage);
-  }
-  if (payload.data) {
-    formData.append('data', JSON.stringify(payload.data));
-  }
-  const res = await apiClient.put('/user/update-me', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await apiClient.put('/user/update-me', payload);
   return res.data;
 };
 
-// ─── Update Avatar ────────────────────────────────────────────────────────────
+// ─── Update Avatar (upload temp media first, then update profile) ─────────────
+// Step 1: upload file to /temp-media/upload → get tempMediaId
+// Step 2: call updateMyProfile with avatarTempMediaId
 export const updateAvatar = async (profileImage: File): Promise<ApiResponse<User>> => {
+  // Step 1: Upload to temp-media
   const formData = new FormData();
-  formData.append('profileImage', profileImage);
-  formData.append('data', JSON.stringify({}));
-  const res = await apiClient.put('/user/update-me', formData, {
+  formData.append('file', profileImage);
+  formData.append('context', 'avatar');
+  const uploadRes = await apiClient.post('/temp-media/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+  const tempMediaId: string = uploadRes.data?.data?.id ?? uploadRes.data?.data?._id;
+
+  // Step 2: Update profile with the temp media ID
+  const res = await apiClient.put('/user/update-me', { avatarTempMediaId: tempMediaId });
   return res.data;
 };
 
