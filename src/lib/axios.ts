@@ -7,6 +7,8 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   skipAuth?: boolean;
 }
 
+console.log("API BASE URL =", BASE_URL);
+
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -49,7 +51,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Public routes যেগুলোতে 401 এলে redirect করব না
+
 const PUBLIC_ROUTES = [
   '/auth/login',
   '/auth/refresh-token',

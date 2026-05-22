@@ -56,6 +56,7 @@ export const login = async (payload: {
 
     return res.data;
   } catch (error: any) {
+    
     console.error('Login error:', error);
     throw error;
   }
