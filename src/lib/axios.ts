@@ -1,6 +1,11 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.10.4:3200/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://server.termsheetgenie.com/api/v1';
+
+// Custom config type with skipAuth option
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  skipAuth?: boolean;
+}
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -12,7 +17,12 @@ const apiClient: AxiosInstance = axios.create({
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  (config: CustomAxiosRequestConfig) => {
+    // যদি skipAuth true হয়, তাহলে Authorization header যোগ করবে না
+    if (config.skipAuth) {
+      return config;
+    }
+    
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token');
       if (token && config.headers) {
@@ -51,6 +61,11 @@ const PUBLIC_ROUTES = [
   '/auth/verify-otp-for-forgot-password',
   '/auth/reset-password',
   '/auth/verify-login-otp',
+  '/auth/toggle-2fa',
+  '/auth/change-password',
+  '/auth/session-info',
+  '/auth/logout-all-devices',
+  '/auth/me',
 ];
 
 apiClient.interceptors.response.use(
