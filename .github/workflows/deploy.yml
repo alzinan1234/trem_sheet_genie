@@ -33,7 +33,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd /var/www/tsg
+            cd /var/www/tsg/frontend
 
             git pull origin main
 
