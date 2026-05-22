@@ -41,6 +41,7 @@ const LoginPage = () => {
         router.push('/investor-admin/my-funds');
       }
     } catch (err: any) {
+      console.log(err)
       const msg = err?.response?.data?.message;
       if (err?.response?.status === 401) {
         setError('Invalid email or password. Please try again.');
