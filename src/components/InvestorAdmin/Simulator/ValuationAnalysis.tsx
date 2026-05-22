@@ -66,7 +66,7 @@ const ValuationAnalysis: React.FC<ValuationAnalysisProps> = ({
           {/* Chart Section */}
           <div className="flex-[3] h-[380px] flex flex-col">
             <ResponsiveContainer width="100%" height="84%">
-              <BarChart data={data} margin={{ top: 10, right: 10, left: 20, bottom: 16 }}>
+              <BarChart data={data as any} margin={{ top: 10, right: 10, left: 20, bottom: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis 
                   dataKey="name" 

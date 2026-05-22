@@ -181,7 +181,7 @@ export default function ReturnsAnalysis() {
                 <Tooltip
                   contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                   labelFormatter={(v) => `Exit: $${v}M`}
-                  formatter={(v: any, name: string) => [`$${Number(v ?? 0).toFixed(2)}M`, name]}
+                  formatter={(v: any, name: any) => [`$${Number(v ?? 0).toFixed(2)}M`, String(name || '')]}
                 />
                 {lines.map(l => (
                   <Line key={l.dataKey} type="monotone" dataKey={l.dataKey} name={l.name}

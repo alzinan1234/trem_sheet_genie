@@ -433,7 +433,7 @@ const handleExitBreakdown = async () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F2F4F7" />
                     <XAxis dataKey="exit" tickFormatter={v => fmtM(v)} tick={{ fontSize: 11, fill: '#667085' }} axisLine={false} tickLine={false} />
                     <YAxis tickFormatter={v => fmtM(v)} tick={{ fontSize: 11, fill: '#667085' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: any, name: string) => [fmt(v), name]} labelFormatter={v => `Exit: ${fmtM(v)}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '13px' }} />
+                    <Tooltip formatter={(v: any, name: any) => [fmt(v), String(name || '')]} labelFormatter={v => `Exit: ${fmtM(v)}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '13px' }} />
                     <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }} />
                     <Area type="monotone" dataKey="lpPayoff" name="Investor Payoff" stroke="#2D60FF" fill="url(#lpGrad)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
                     <Area type="monotone" dataKey="founderPayoff" name="Founder Payoff" stroke="#22C55E" fill="url(#fGrad)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
@@ -671,7 +671,7 @@ const handleExitBreakdown = async () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F2F4F7" />
                     <XAxis dataKey="exit" tickFormatter={v => fmtM(v)} tick={{ fontSize: 11, fill: '#667085' }} axisLine={false} tickLine={false} />
                     <YAxis tickFormatter={v => fmtM(v)} tick={{ fontSize: 11, fill: '#667085' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: any, name: string) => [fmt(v), name]} labelFormatter={v => `Exit: ${fmtM(v)}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '13px' }} />
+                    <Tooltip formatter={(v: any, name: any) => [fmt(v), String(name || '')]} labelFormatter={v => `Exit: ${fmtM(v)}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: '13px' }} />
                     <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }} />
                     <Bar dataKey="lpPayoff" name="Investor Payoff" fill="#2D60FF" radius={[4, 4, 0, 0]} maxBarSize={40} />
                     <Bar dataKey="founderPayoff" name="Founder Payoff" fill="#22C55E" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -723,7 +723,6 @@ const handleExitBreakdown = async () => {
     </div>
   );
 };
-
 // ── MetricCard ──────────────────────────────────────────────────────────────
 const MetricCard = ({ icon, label, value, color }: any) => {
   const bg: Record<string, string> = { blue: 'bg-blue-50', green: 'bg-green-50', purple: 'bg-purple-50', orange: 'bg-orange-50' };

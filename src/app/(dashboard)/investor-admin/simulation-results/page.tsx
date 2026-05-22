@@ -99,6 +99,20 @@ function validateSimulationData(data: any, fund: any): ValidationIssue[] {
       issues.push({ field: `safeNotes[${i}].convertingPricedRound`, label: `${label} → Converting Priced Round`, reason: 'Select which priced round this SAFE/Note converts into.', step: 'Step 1' });
     if (!s.investmentDate)
       issues.push({ field: `safeNotes[${i}].investmentDate`, label: `${label} → Investment Date`, reason: 'Select an investment date.', step: 'Step 1' });
+    
+    // ✅ VALIDATION: SAFE cannot convert into the LAST round if there are multiple rounds
+    if (s.convertingPricedRound && pricedRounds.length > 1) {
+      const targetIndex = pricedRounds.findIndex((r: any) => r.roundName === s.convertingPricedRound);
+      const lastRoundIndex = pricedRounds.length - 1;
+      if (targetIndex === lastRoundIndex) {
+        issues.push({ 
+          field: `safeNotes[${i}].convertingPricedRound`, 
+          label: `${label} → Converting Priced Round`, 
+          reason: `SAFEs cannot convert into the last round ("${s.convertingPricedRound}"). Select an earlier round to avoid circular calculation.`, 
+          step: 'Step 1' 
+        });
+      }
+    }
   });
 
   // Step 4 — Contract Valuation
@@ -164,8 +178,6 @@ function ValidationErrorPanel({ issues, onBack }: { issues: ValidationIssue[]; o
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-[#F9FAFB] p-6 pt-12">
       <div className="bg-white rounded-2xl border border-red-100 shadow-sm max-w-2xl w-full overflow-hidden">
-
-        {/* Header */}
         <div className="bg-red-50 px-6 py-5 border-b border-red-100 flex items-start gap-4">
           <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -181,8 +193,6 @@ function ValidationErrorPanel({ issues, onBack }: { issues: ValidationIssue[]; o
             </p>
           </div>
         </div>
-
-        {/* Issues by step */}
         <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
           {stepOrder.map(step => {
             const list = byStep[step];
@@ -210,13 +220,8 @@ function ValidationErrorPanel({ issues, onBack }: { issues: ValidationIssue[]; o
             );
           })}
         </div>
-
-        {/* Footer */}
         <div className="px-6 py-5 bg-gray-50 border-t border-gray-100 space-y-2">
-          <button
-            onClick={onBack}
-            className="w-full bg-[#2D60FF] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
-          >
+          <button onClick={onBack} className="w-full bg-[#2D60FF] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all">
             ← Go Back &amp; Fix Inputs
           </button>
           {byStep['Fund Settings'] && (
@@ -244,10 +249,7 @@ function ApiErrorPanel({ message, onBack }: { message: string; onBack: () => voi
         </div>
         <h2 className="text-xl font-bold text-[#101828] mb-2">Simulation Error</h2>
         <p className="text-sm text-[#667085] mb-6 leading-relaxed">{message}</p>
-        <button
-          onClick={onBack}
-          className="w-full bg-[#2D60FF] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
-        >
+        <button onClick={onBack} className="w-full bg-[#2D60FF] text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all">
           ← Go Back &amp; Fix Inputs
         </button>
       </div>
@@ -255,16 +257,11 @@ function ApiErrorPanel({ message, onBack }: { message: string; onBack: () => voi
   );
 }
 
-// ─── Strip fund params from a round object ────────────────────────────────────
+// ─── Strip fund params ────────────────────────────────────────────────────────
 function stripFundParams(round: any): any {
   const { 
-    committed_capital, 
-    commitment_period, 
-    commitment_period_mgmt_fee,
-    post_commitment_period_mgmt_fee, 
-    performance_fee, 
-    moic, 
-    fund_lifetime, 
+    committed_capital, commitment_period, commitment_period_mgmt_fee,
+    post_commitment_period_mgmt_fee, performance_fee, moic, fund_lifetime, 
     ...clean 
   } = round;
   return clean;
@@ -284,12 +281,11 @@ function SimulationResultsPageContent() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    // Try all known storage keys in priority order
     const stored =
-      localStorage.getItem('tsg_simulation_results') ||  // Step4 saves here (most complete — has contractValuation)
-      localStorage.getItem('tsg_simulation_data') ||     // fallback — mid-flow data
-      sessionStorage.getItem('simulationData') ||         // key used by SimulationSection / my-funds
-      sessionStorage.getItem('simulationResultsData');   // legacy
+      localStorage.getItem('tsg_simulation_results') ||
+      localStorage.getItem('tsg_simulation_data') ||
+      sessionStorage.getItem('simulationData') ||
+      sessionStorage.getItem('simulationResultsData');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -301,7 +297,6 @@ function SimulationResultsPageContent() {
     } else {
       setIsCalculating(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runSimulation = async (data: any) => {
@@ -309,44 +304,42 @@ function SimulationResultsPageContent() {
     try {
       const cv = data.contractValuation || {};
 
-      // ── Fetch fund object by fundName if not already present ───────────────
+      // Fetch fund
       let fund: any = data.fund || null;
       if (!fund && data.fundName) {
         try {
           const fundRes = await getFunds();
           if (fundRes.success) {
-            fund = ((fundRes.data as any) || []).find(
-              (f: any) => f.fundName === data.fundName
-            ) || null;
+            fund = ((fundRes.data as any) || []).find((f: any) => f.fundName === data.fundName) || null;
           }
-        } catch {
-          // validation will catch missing fund below
-        }
+        } catch {}
       }
-
-      // Save fetched fund to state so SimulationResults can use it for breakeven
       setFundData(fund);
 
-      // ── Front-end validation ───────────────────────────────────────────────
+      // Validation
       const issues = validateSimulationData(data, fund);
       if (issues.length > 0) {
         setValidationIssues(issues);
-        toast.error(
-          `${issues.length} input issue${issues.length !== 1 ? 's' : ''} found. Please fix them.`,
-          { id: toastId }
-        );
+        toast.error(`${issues.length} input issue${issues.length !== 1 ? 's' : ''} found. Please fix them.`, { id: toastId });
         setIsCalculating(false);
         return;
       }
 
-      // ── Gather rounds ──────────────────────────────────────────────────────
+      // Gather rounds
       const pricedRounds = data.pricedRounds || [];
       const debtRounds = data.debtRounds || [];
       const safeNotes = data.safeNotes || [];
 
       const hasDebtOrSafe = debtRounds.length > 0 || safeNotes.length > 0;
       const hasMultiplePricedRounds = pricedRounds.length > 1;
-      const isMultiPhase = hasDebtOrSafe || hasMultiplePricedRounds;
+      
+      // ✅ PHASE DETECTION:
+      // Phase 1: Single priced round, no debt/SAFE
+      // Phase 2: Single priced round + debt/SAFE
+      // Phase 3: Multiple priced rounds (+ optional debt/SAFE)
+      const isPhase1 = !hasMultiplePricedRounds && !hasDebtOrSafe;
+      const isPhase2 = !hasMultiplePricedRounds && hasDebtOrSafe;
+      const isPhase3 = hasMultiplePricedRounds;
 
       const seniority = data.seniority || {};
       const equitySeniority = seniority.equity || [];
@@ -370,52 +363,40 @@ function SimulationResultsPageContent() {
         return debtSeniorityList.length + 1;
       };
 
-      // ── Build rounds ──────────────────────────────────────────────────────
-      // ✅ FIX: Build ALL priced rounds first (WITHOUT fund params for past rounds)
+      // ✅ Build ALL priced rounds — fund ONLY for currentRound (last one)
       const builtPricedRounds = pricedRounds.map((r: any, idx: number) => {
-        // Ensure ownership has a valid value
-        let ownershipValue = Number(r.ownership);
-        let ownershipType = r.ownershipType || '%';
-
-        if (isNaN(ownershipValue) || ownershipValue <= 0) {
-          console.warn(`[Fix] Round ${r.roundName} had invalid ownership: ${r.ownership}, setting to 20%`);
-          ownershipValue = 20;
-          ownershipType = '%';
-        }
-
-        const fixedRound = {
-          ...r,
-          ownership: ownershipValue,
-          ownershipType: ownershipType,
-          investmentAmount: Number(r.investmentAmount) || 2000000
-        };
-
-        // ✅ FIX: Only pass fund for the LAST round (currentRound)
         const isCurrentRound = idx === pricedRounds.length - 1;
-        return buildPricedRound(fixedRound, idx + 1, isCurrentRound ? fund : null);
+        return buildPricedRound(r, getEquitySeniority(r.roundName || r.name || ''), isCurrentRound ? fund : null);
       });
 
-      // Current round = last one (has fund params)
       const currentPricedRound = builtPricedRounds[builtPricedRounds.length - 1];
-
-      // Past priced rounds = all except last (strip fund params)
-      const pastPricedRounds = builtPricedRounds.slice(0, builtPricedRounds.length - 1);
       
-      // ✅ FIX: Strip fund params from past priced rounds (belt + suspenders)
-      const pastPricedRoundsClean = pastPricedRounds.map((r: any) => stripFundParams(r));
+      // Past priced rounds = all except last (strip fund params)
+      const pastPricedRoundsClean = builtPricedRounds.slice(0, builtPricedRounds.length - 1).map((r: any) => stripFundParams(r));
 
-      // Build debt rounds (no fund params)
+      // Build debt rounds
       const builtDebtRounds = debtRounds.map((d: any) =>
         buildDebtRound(d, getDebtSeniority(d.roundName || d.name || ''))
       );
 
-      // ✅ FIX: Combine clean past rounds + debt rounds
-      const pastRoundsForSimulate = [...pastPricedRoundsClean, ...builtDebtRounds];
+      // ✅ Build pastRounds based on phase:
+      let pastRoundsForSimulate: any[] = [];
+      
+      if (isPhase1) {
+        // Phase 1: No past rounds
+        pastRoundsForSimulate = [];
+      } else if (isPhase2) {
+        // Phase 2: Only debt rounds in pastRounds
+        pastRoundsForSimulate = [...builtDebtRounds];
+      } else if (isPhase3) {
+        // Phase 3: Earlier priced rounds + debt rounds
+        pastRoundsForSimulate = [...pastPricedRoundsClean, ...builtDebtRounds];
+      }
 
-      // ── Build clean priced rounds for cap table (ALL without fund params) ──
+      // Clean priced rounds for cap table (ALL without fund params)
       const cleanPricedRoundsForCapTable = builtPricedRounds.map((r: any) => stripFundParams(r));
 
-      // ── Cap Table call ─────────────────────────────────────────────────────
+      // Cap Table call
       const capTableBody = hasMultiplePricedRounds
         ? buildCapTableRequestMultiRound(data, cleanPricedRoundsForCapTable, safeNotes)
         : buildCapTableRequest(data, cleanPricedRoundsForCapTable[0], safeNotes);
@@ -426,19 +407,20 @@ function SimulationResultsPageContent() {
         return null;
       });
 
-      // ── Simulate ───────────────────────────────────────────────────────────
+      // Simulate call
       let simRes: any;
       const hasSubjective = Number(cv.subjectivePostMoneyValuation || 0) > 0;
 
-      if (!isMultiPhase) {
+      if (isPhase1) {
         const body = buildSingleSimulateRequest(data, currentPricedRound, cv);
         console.log('[Phase 1 Body]', JSON.stringify(body, null, 2));
         simRes = hasSubjective
           ? await simulateSingleInvestmentWithValuation(body)
           : await simulateSingleInvestment(body);
       } else {
+        // Phase 2 or Phase 3 — both use multiple-investments API
         const params = buildMultipleSimulateParams(data, currentPricedRound, pastRoundsForSimulate, safeNotes, cv);
-        console.log('[Phase 2/3 Params]', JSON.stringify(params, null, 2));
+        console.log(`[Phase ${isPhase2 ? '2' : '3'} Params]`, JSON.stringify(params, null, 2));
         simRes = hasSubjective
           ? await simulateMultipleInvestmentsWithValuation(params)
           : await simulateMultipleInvestments(params);

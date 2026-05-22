@@ -36,6 +36,8 @@ const isUnpricedConversion = (sc: any): boolean => {
 };
 
 const Step2CapTable: React.FC<Step2Props> = ({ data, onContinue, onStepBack }) => {
+  console.log("On continue xxxxxxxxxxxxxxxxxxxx", onContinue)
+  console.log("On continue yyyyyyyyyyyyyyy", data)
   const router = useRouter();
   const pathname = usePathname();
   const [isLoadingCapTable, setIsLoadingCapTable] = useState(false);
@@ -57,6 +59,7 @@ const Step2CapTable: React.FC<Step2Props> = ({ data, onContinue, onStepBack }) =
 
       // Strip fund params
       const cleanPricedRounds = allPricedRounds.map((round: any) => {
+        console.log("pppppppppppppppppppppppppppppp")
         const { committed_capital, commitment_period, commitment_period_mgmt_fee,
           post_commitment_period_mgmt_fee, performance_fee, moic, fund_lifetime, ...clean } = round;
         return clean;
@@ -107,10 +110,10 @@ const Step2CapTable: React.FC<Step2Props> = ({ data, onContinue, onStepBack }) =
       }
 
       console.log('🔍 unpriced_round_conversions keys:', Object.keys(unpricedMap));
-      console.log('[Step2 CapTable Request]', JSON.stringify(requestBody, null, 2));
+      // console.log('[Step2 CapTable Request]', JSON.stringify(requestBody, null, 2));
 
       const res = await createCapTable(requestBody);
-      console.log('[Step2 CapTable Response]', JSON.stringify(res, null, 2));
+      // console.log('[Step2 CapTable Response]', JSON.stringify(res, null, 2));
 
       if (res?.success && res?.data) {
         const d = res.data;
@@ -289,6 +292,8 @@ const Step2CapTable: React.FC<Step2Props> = ({ data, onContinue, onStepBack }) =
       loadCapTableFromAPI();
     }
   }, []);
+
+  console.log("Captable yyyy", capTable)
 
   const formatNumber = (num: number) => {
     if (!num || num === 0) return '';

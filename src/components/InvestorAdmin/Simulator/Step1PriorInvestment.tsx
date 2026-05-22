@@ -594,6 +594,8 @@ const Step1PriorInvestment: React.FC<Step1Props> = ({ data, onContinue, onStepBa
     setEditingDebtId(null);
   };
 
+  console.log("From data oooooo", formData)
+
   return (
     <div className="mx-auto px-4 py-1 ">
       {/* Header */}

@@ -169,8 +169,8 @@ export default function FundDetailsPage({ params }: PageProps) {
         }>
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-16">
             <div className="space-y-6">
-              <EditableInfoItem isEditing={isEditingBasic} label="Fund Name" value={editForm.fundName || fund.fundName} onChange={v => setEditForm(p => ({ ...p, fundName: v }))} />
-              <EditableInfoItem isEditing={isEditingBasic} label="Lead GP" value={editForm.leadGP || fund.leadGP} onChange={v => setEditForm(p => ({ ...p, leadGP: v }))} />
+              <EditableInfoItem isEditing={isEditingBasic} label="Fund Name" value={editForm.fundName || fund.fundName} onChange={(v: string) => setEditForm(p => ({ ...p, fundName: v }))} />
+              <EditableInfoItem isEditing={isEditingBasic} label="Lead GP" value={editForm.leadGP || fund.leadGP} onChange={(v: string) => setEditForm(p => ({ ...p, leadGP: v }))} />
               <InfoItem label="Inception Date" value={formatDate(fund.inceptionDate)} />
               <InfoItem label="Initial Closing Date" value={formatDate(fund.initialClosingDate)} />
               <InfoItem label="Status" value={fund.status} isStatus />
@@ -190,7 +190,7 @@ export default function FundDetailsPage({ params }: PageProps) {
         <SectionTable title="Investments" description="Companies this fund has invested in" buttonText="New Portfolio Company" onAdd={() => setIsSimulationModalOpen(true)}
           columns={[{ key: 'name', label: 'Company' }, { key: 'status', label: 'Status' }, { key: 'description', label: 'Description' }, { key: 'investmentAmount', label: 'Investment Amount' }, { key: 'growthPercentage', label: 'Growth %' }]}
           rows={startups.map(s => ({ id: s.id, name: s.name, url: s.website, status: s.status, description: s.description, investmentAmount: formatCurrency(s.investmentAmount), growthPercentage: `${s.growthPercentage}%` }))}
-          onRowClick={(row) => router.push(`/investor-admin/startups/${row.id}`)} />
+          onRowClick={(row: any) => router.push(`/investor-admin/startups/${row.id}`)} />
 
         {/* Investment Pipeline */}
         <SectionTable title="Investment Pipeline" description="Companies with investment potential" buttonText="New Potential Investment" onAdd={() => setIsPipelineModalOpen(true)}
@@ -201,7 +201,7 @@ export default function FundDetailsPage({ params }: PageProps) {
         <SectionTable title="Limited Partners" description="Partners who committed capital to this fund" buttonText="New Partner" onAdd={() => setIsLPModalOpen(true)}
           columns={[{ key: 'name', label: 'Name' }, { key: 'committedCapital', label: 'Committed Capital' }, { key: 'managementFees', label: 'Management Fees' }, { key: 'carryPercentage', label: 'Carry %' }]}
           rows={lps.map(lp => ({ id: lp.id, name: lp.companyName, committedCapital: formatCurrency(lp.committedCapital), managementFees: formatCurrency(lp.managementFees), carryPercentage: `${lp.carryPercentage}%` }))}
-          onRowClick={(row) => router.push(`/investor-admin/limited-partners/${row.id}`)} />
+          onRowClick={(row: any) => router.push(`/investor-admin/limited-partners/${row.id}`)} />
       </div>
 
       {/* Simulation Modal */}

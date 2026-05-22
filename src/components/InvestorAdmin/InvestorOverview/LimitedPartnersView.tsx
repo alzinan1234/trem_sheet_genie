@@ -168,19 +168,19 @@ export default function LimitedPartnersView({ onBack }: { onBack: () => void }) 
               </div>
 
               <div className="grid gap-6">
-                <LPInput label="Agreement Date" value={editForm.agreementDate ? new Date(editForm.agreementDate).toLocaleDateString() : ''} onChange={v => updateField('agreementDate', v)} />
-                <LPInput label="Committed Capital ($)" value={String(editForm.committedCapital || 0)} onChange={v => updateField('committedCapital', Number(v))} type="number" />
-                <LPInput label="Capital Calls ($)" value={String(editForm.capitalCalls || 0)} onChange={v => updateField('capitalCalls', Number(v))} type="number" />
-                <LPInput label="Management Fees ($)" value={String(editForm.managementFees || 0)} onChange={v => updateField('managementFees', Number(v))} type="number" />
+                <LPInput label="Agreement Date" value={editForm.agreementDate ? new Date(editForm.agreementDate).toLocaleDateString() : ''} onChange={(v: string) => updateField('agreementDate', v)} />
+                <LPInput label="Committed Capital ($)" value={String(editForm.committedCapital || 0)} onChange={(v: string) => updateField('committedCapital', Number(v))} type="number" />
+                <LPInput label="Capital Calls ($)" value={String(editForm.capitalCalls || 0)} onChange={(v: string) => updateField('capitalCalls', Number(v))} type="number" />
+                <LPInput label="Management Fees ($)" value={String(editForm.managementFees || 0)} onChange={(v: string) => updateField('managementFees', Number(v))} type="number" />
                 <div className="flex items-center justify-between gap-8">
                   <label className="text-sm font-bold text-gray-800 w-1/3">Carry %</label>
                   <input type="number" value={editForm.carryPercentage || 0} onChange={e => updateField('carryPercentage', Number(e.target.value))}
                     className="flex-1 bg-gray-50 border-none rounded-xl p-3 text-sm text-gray-600 focus:ring-2 focus:ring-blue-100 outline-none" />
                 </div>
-                <LPInput label="Contact Person" value={editForm.mainPointOfContactName || ''} onChange={v => updateField('mainPointOfContactName', v)} />
-                <LPInput label="Contact Role" value={editForm.mainPointOfContactRole || ''} onChange={v => updateField('mainPointOfContactRole', v)} />
-                <LPInput label="Contact Email" value={editForm.mainPointOfContactEmail || ''} onChange={v => updateField('mainPointOfContactEmail', v)} />
-                <LPInput label="Contact Phone" value={editForm.mainPointOfContactPhoneNumber || ''} onChange={v => updateField('mainPointOfContactPhoneNumber', v)} />
+                <LPInput label="Contact Person" value={editForm.mainPointOfContactName || ''} onChange={(v: string) => updateField('mainPointOfContactName', v)} />
+                <LPInput label="Contact Role" value={editForm.mainPointOfContactRole || ''} onChange={(v: string) => updateField('mainPointOfContactRole', v)} />
+                <LPInput label="Contact Email" value={editForm.mainPointOfContactEmail || ''} onChange={(v: string) => updateField('mainPointOfContactEmail', v)} />
+                <LPInput label="Contact Phone" value={editForm.mainPointOfContactPhoneNumber || ''} onChange={(v: string) => updateField('mainPointOfContactPhoneNumber', v)} />
               </div>
 
               <div className="flex justify-between items-center mt-12 pt-8 border-t border-gray-50">
