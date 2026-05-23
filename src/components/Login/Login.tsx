@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { login } from '@/services/auth.service';
+import { login, getMe } from '@/services/auth.service';
 
 const LoginPage = () => {
   const router = useRouter();
@@ -20,12 +20,10 @@ const LoginPage = () => {
     try {
       const res = await login({ email, password });
 
-      // 2FA check — backend may return { twoFactorRequired: true, preAuthToken: "..." }
-      // This can appear at res.data level OR res level depending on backend structure
+      // 2FA check
       const raw = res as any;
       const dataLevel = raw?.data as any;
-      const preAuthToken =
-        dataLevel?.preAuthToken || raw?.preAuthToken;
+      const preAuthToken = dataLevel?.preAuthToken || raw?.preAuthToken;
       const needs2FA =
         dataLevel?.twoFactorRequired === true ||
         raw?.twoFactorRequired === true ||
@@ -38,10 +36,47 @@ const LoginPage = () => {
       }
 
       if (res.success) {
-        router.push('/investor-admin/my-funds');
+        sessionStorage.setItem('emailVerified', 'true');
+
+        const userData = (res.data as any)?.user as any;
+        const userName = `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim();
+        if (userName) sessionStorage.setItem('userName', userName);
+
+        // ✅ status PENDING মানে onboarding শেষ হয়নি
+        // getMe দিয়ে কোন step এ আছে check করো
+        if (userData?.status === 'PENDING') {
+          try {
+            const meRes = await getMe();
+            const me = (meRes.data as any);
+            const nextStep = me?.nextStep;
+            const termSheetGenie = me?.termSheetGenie;
+
+            const roleReverseMap: Record<string, string> = {
+              'AS_AN_INVESTOR': 'investor',
+              'AS_AN_ENTREPRENEUR': 'entrepreneur',
+              'AS_A_STUDENT': 'student',
+            };
+
+            if (!termSheetGenie || nextStep === 'UPDATE_TERM_SHEET_GENIE') {
+              // Role select করা হয়নি
+              router.push('/role-selection');
+            } else if (nextStep === 'CREATE_ORGANIZATION') {
+              // Role আছে, org বাকি
+              sessionStorage.setItem('userRole', roleReverseMap[termSheetGenie] || 'investor');
+              router.push('/additional-info');
+            } else {
+              router.push('/investor-admin/my-funds');
+            }
+          } catch {
+            // getMe fail করলে safe fallback
+            router.push('/role-selection');
+          }
+        } else {
+          router.push('/investor-admin/my-funds');
+        }
       }
     } catch (err: any) {
-      console.log(err)
+      console.log(err);
       const msg = err?.response?.data?.message;
       if (err?.response?.status === 401) {
         setError('Invalid email or password. Please try again.');
