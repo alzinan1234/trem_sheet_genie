@@ -11,7 +11,14 @@ interface AdditionalInfoFormData {
 }
 
 const companySizes = ['1 - 10 employees','11 - 50 employees','51 - 200 employees','201 - 500 employees','501 - 1000 employees','1000+ employees'];
-const entityTypes = ['VC','PE','Search Fund','Angel','Family Office','Other'];
+
+const entityTypes = [
+  { label: 'VC', value: 'VC' },
+  { label: 'PE', value: 'PE' },
+  { label: 'Search Fund', value: 'SEARCH_FUND' },
+  { label: 'Angel', value: 'ANGEL' },
+  { label: 'Family Office', value: 'FAMILY_OFFICE' },
+];
 
 const AdditionalInfoPage: React.FC = () => {
   const router = useRouter();
@@ -29,8 +36,8 @@ const AdditionalInfoPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const userRole = sessionStorage.getItem('userRole');
     const emailVerified = sessionStorage.getItem('emailVerified');
+    const userRole = sessionStorage.getItem('userRole');
     const fullName = sessionStorage.getItem('userName') || '';
     const nameParts = fullName.trim().split(/\s+/);
     setFormData(prev => ({ ...prev, firstName: nameParts[0] || '', lastName: nameParts.slice(1).join(' ') || '' }));
@@ -50,6 +57,7 @@ const AdditionalInfoPage: React.FC = () => {
     setError('');
     try {
       const selectedCallingCode = `+${getCountryCallingCode(formData.countryCode as CountryCode)}`;
+
       const res = await createOrganization({
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -60,13 +68,18 @@ const AdditionalInfoPage: React.FC = () => {
         typeOfCompany: formData.companyType,
         entityType: formData.entityType,
       });
+
       if (res.success) {
+        // ✅ FIX: userRole আগে read করো, তারপর sessionStorage clear করো
+        const userRole = sessionStorage.getItem('userRole') || 'investor';
+
         sessionStorage.removeItem('userEmail');
         sessionStorage.removeItem('userName');
         sessionStorage.removeItem('emailVerified');
         sessionStorage.removeItem('userRole');
         sessionStorage.removeItem('verifyToken');
-        const userRole = sessionStorage.getItem('userRole') || 'investor';
+
+        // ✅ FIX: এখন userRole এ সঠিক value আছে
         if (userRole === 'entrepreneur') router.push('/entrepreneur-admin');
         else if (userRole === 'student') router.push('/student-dashboard');
         else router.push('/investor-admin/my-funds');
@@ -136,7 +149,11 @@ const AdditionalInfoPage: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-600">Entity Type</label>
                 <select name="entityType" value={formData.entityType} onChange={handleInputChange} disabled={isLoading} className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#0A2A99] outline-none bg-gray-50/50 text-sm ${formData.entityType === '' ? 'text-gray-400' : 'text-black'}`}>
                   <option value="" disabled hidden>Select Type of Entity</option>
-                  {entityTypes.map((type) => <option key={type} value={type} className="text-black">{type}</option>)}
+                  {entityTypes.map((type) => (
+                    <option key={type.value} value={type.value} className="text-black">
+                      {type.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

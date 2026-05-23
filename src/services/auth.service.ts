@@ -1,3 +1,5 @@
+
+
 import apiClient, { CustomAxiosRequestConfig } from '@/lib/axios';
 import {
   ApiResponse,
@@ -134,12 +136,17 @@ export const verifyEmail = async (payload: {
         },
       }
     );
-    if (res.data?.data?.access_token) {
-      if (typeof window !== 'undefined') {
-        setCookie('access_token', res.data.data.access_token, 7);
-        setCookie('user', JSON.stringify(res.data.data.user), 7);
-      }
+
+    // ✅ FIX: Postman response structure অনুযায়ী access_token আছে res.data.data তে
+    const tokenData = res.data?.data as any;
+    const accessToken = tokenData?.access_token;
+    const user = tokenData?.user;
+
+    if (accessToken && typeof window !== 'undefined') {
+      setCookie('access_token', accessToken, 7);
+      if (user) setCookie('user', JSON.stringify(user), 7);
     }
+
     return res.data;
   } catch (error: any) {
     console.error('Verify email error:', error);
@@ -208,7 +215,6 @@ export const verifyForgotPasswordOTP = async (payload: {
     
     console.log('📦 2. Verify OTP Response:', res.data);
     
-    // ✅ FIX: Save the NEW resetToken returned from step 2 into cookie
     if (res.data?.data?.resetToken && typeof window !== 'undefined') {
       const newToken = res.data.data.resetToken;
       setCookie('resetToken', newToken, 1);
@@ -239,8 +245,6 @@ export const resetPassword = async (payload: {
     
     resetToken = resetToken.trim();
 
-    // ✅ FIX: Use `token` header instead of `Authorization: Bearer`
-    // Backend reads req.headers.token, not Authorization header
     const res = await apiClient.post(
       '/auth/reset-password',
       {

@@ -35,7 +35,9 @@ const RoleSelectionPage: React.FC = () => {
       const res = await updateTermSheetGenie({ termSheetGenie: roleMap[selectedRole] });
       if (res.success) {
         sessionStorage.setItem('userRole', selectedRole);
-        if (res.data.nextStep === 'CREATE_ORGANIZATION') {
+        // ✅ FIX: Postman Image 3/4 অনুযায়ী nextStep আছে res.data.nextStep এ
+        const nextStep = (res.data as any)?.nextStep || (res.data as any)?.data?.nextStep;
+        if (nextStep === 'CREATE_ORGANIZATION') {
           router.push('/additional-info');
         } else {
           router.push('/investor-admin/my-funds');
