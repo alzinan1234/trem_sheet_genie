@@ -42,7 +42,7 @@ const ForgotPasswordPage = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Step 1: Send OTP (সঠিকভাবে resetToken সংরক্ষণ)
+  // Step 1: Send OTP
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -66,11 +66,10 @@ const ForgotPasswordPage = () => {
       console.log('Forgot password response:', res);
       
       if (res.success) {
-        // সংরক্ষণ করুন resetToken যা ব্যাকএন্ড থেকে এসেছে
         if (res.data?.resetToken) {
           sessionStorage.setItem('resetToken', res.data.resetToken);
           setResetToken(res.data.resetToken);
-          console.log('Reset token saved:', res.data.resetToken);
+          console.log('Reset token saved from step 1');
         }
         
         setSuccess('4-digit OTP sent to your email!');
@@ -91,7 +90,7 @@ const ForgotPasswordPage = () => {
     }
   };
 
-  // Step 2: Verify OTP (OTP + টোকেন উভয়ই পাঠানো হচ্ছে)
+  // Step 2: Verify OTP
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -102,7 +101,6 @@ const ForgotPasswordPage = () => {
       return;
     }
     
-    // চেক করুন resetToken আছে কিনা
     const storedToken = resetToken || sessionStorage.getItem('resetToken');
     
     if (!storedToken) {
@@ -113,7 +111,6 @@ const ForgotPasswordPage = () => {
     
     setIsLoading(true);
     try {
-      // OTP এবং টোকেন উভয়ই পাঠানো হচ্ছে
       const res = await verifyForgotPasswordOTP({
         otp: otpValue,
         email: email,
@@ -122,7 +119,13 @@ const ForgotPasswordPage = () => {
       console.log('Verify OTP response:', res);
       
       if (res.success) {
-        // ভেরিফিকেশন সফল হলে রিসেট পাসওয়ার্ড স্টেপে যান
+        // ✅ FIX: Save the NEW resetToken from step 2 — step 3 needs this updated token
+        if (res.data?.resetToken) {
+          sessionStorage.setItem('resetToken', res.data.resetToken);
+          setResetToken(res.data.resetToken);
+          console.log('✅ New reset token saved from step 2 verify OTP');
+        }
+
         setStep('reset');
         setError('');
         setSuccess('OTP verified successfully!');
@@ -147,7 +150,6 @@ const ForgotPasswordPage = () => {
       const res = await forgotPassword({ email });
       
       if (res.success) {
-        // নতুন resetToken সংরক্ষণ করুন
         if (res.data?.resetToken) {
           sessionStorage.setItem('resetToken', res.data.resetToken);
           setResetToken(res.data.resetToken);
@@ -204,6 +206,7 @@ const ForgotPasswordPage = () => {
       return;
     }
     
+    // ✅ Uses the updated resetToken saved after step 2 verify OTP
     const storedToken = resetToken || sessionStorage.getItem('resetToken');
     
     if (!storedToken) {

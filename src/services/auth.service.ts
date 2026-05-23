@@ -8,6 +8,33 @@ import {
   SessionInfo,
 } from '@/types';
 
+// ─── Cookie Helper Functions ─────────────────────────────────────────────────
+const setCookie = (name: string, value: string, days: number = 7) => {
+  if (typeof window === 'undefined') return;
+  
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  
+  if (process.env.NODE_ENV === 'production') {
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;Secure;SameSite=Lax`;
+  }
+};
+
+const getCookie = (name: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+};
+
+const removeCookie = (name: string) => {
+  if (typeof window === 'undefined') return;
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+};
+
 // ─── Register ─────────────────────────────────────────────────────────────────
 export const register = async (payload: {
   name: string;
@@ -37,13 +64,16 @@ export const login = async (payload: {
 
     if (res.data?.data?.access_token) {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', res.data.data.access_token);
-        localStorage.setItem('user', JSON.stringify(res.data.data.user));
+        setCookie('access_token', res.data.data.access_token, 7);
+        setCookie('user', JSON.stringify(res.data.data.user), 7);
       }
     }
 
     const inner = res.data?.data as any;
     if (inner?.twoFactorRequired || inner?.preAuthToken) {
+      if (inner?.preAuthToken && typeof window !== 'undefined') {
+        setCookie('preAuthToken', inner.preAuthToken, 1);
+      }
       return {
         ...res.data,
         data: {
@@ -56,7 +86,6 @@ export const login = async (payload: {
 
     return res.data;
   } catch (error: any) {
-    
     console.error('Login error:', error);
     throw error;
   }
@@ -107,8 +136,8 @@ export const verifyEmail = async (payload: {
     );
     if (res.data?.data?.access_token) {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', res.data.data.access_token);
-        localStorage.setItem('user', JSON.stringify(res.data.data.user));
+        setCookie('access_token', res.data.data.access_token, 7);
+        setCookie('user', JSON.stringify(res.data.data.user), 7);
       }
     }
     return res.data;
@@ -119,7 +148,6 @@ export const verifyEmail = async (payload: {
 };
 
 // ─── Forgot Password ──────────────────────────────────────────────────────────
-// Step 1: ইমেইল দিলে ব্যাকএন্ড থেকে resetToken আসবে
 export const forgotPassword = async (payload: {
   email: string;
 }): Promise<ApiResponse<{ resetToken: string }>> => {
@@ -130,26 +158,19 @@ export const forgotPassword = async (payload: {
     
     console.log('📦 1. Forgot Password Full Response:', res.data);
     
-    // ব্যাকএন্ড থেকে resetToken আসছে কিনা চেক করুন
     if (res.data?.data?.resetToken && typeof window !== 'undefined') {
       const token = res.data.data.resetToken;
-      sessionStorage.setItem('resetToken', token);
-      console.log('✅ 1. Reset Token Saved to sessionStorage:', token);
+      setCookie('resetToken', token, 1);
+      console.log('✅ 1. Reset Token Saved to Cookie:', token.substring(0, 50) + '...');
       
-      // Token ডিকোড করে expiry চেক করুন
       try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const decoded = JSON.parse(atob(base64));
         console.log('⏰ 1. Token Expiry:', new Date(decoded.exp * 1000).toLocaleString());
-        console.log('🕐 1. Current Time:', new Date().toLocaleString());
-        const isExpired = decoded.exp * 1000 < Date.now();
-        console.log('⚠️ 1. Is Token Expired?:', isExpired);
       } catch(e) {
-        console.log('⚠️ 1. Could not decode token (maybe not JWT)');
+        console.log('⚠️ 1. Could not decode token');
       }
-    } else {
-      console.log('❌ 1. No resetToken in response!');
     }
     
     return res.data;
@@ -160,54 +181,38 @@ export const forgotPassword = async (payload: {
 };
 
 // ─── Verify OTP for Forgot Password ──────────────────────────────────────────
-// Step 2: OTP verify করলে ব্যাকএন্ড থেকে নতুন resetToken আসবে
 export const verifyForgotPasswordOTP = async (payload: {
   otp: string;
   email: string;
 }): Promise<ApiResponse<{ resetToken: string }>> => {
   try {
-    // sessionStorage থেকে আগের resetToken নিন
-    const storedToken = typeof window !== 'undefined' 
-      ? sessionStorage.getItem('resetToken') 
-      : null;
+    const storedToken = getCookie('resetToken');
     
-    console.log('🔑 2. Stored Reset Token from sessionStorage:', storedToken);
+    console.log('🔑 2. Stored Reset Token from Cookie:', storedToken?.substring(0, 50) + '...');
     console.log('📝 2. Verifying OTP:', payload.otp);
-    console.log('📧 2. Email:', payload.email);
     
     if (!storedToken) {
-      throw new Error('Reset token not found in sessionStorage. Please request OTP again.');
+      throw new Error('Reset token not found. Please request OTP again.');
     }
     
-    // Postman এর মতো Headers এ token পাঠান
     const res = await apiClient.post(
       '/auth/verify-otp-for-forgot-password',
-      { otp: payload.otp }, // Body তে শুধু OTP
+      { otp: payload.otp },
       {
         headers: {
-          token: storedToken, // Header এ token
+          token: storedToken,
         },
         skipAuth: true,
       } as unknown as CustomAxiosRequestConfig
     );
     
-    console.log('📦 2. Verify OTP Full Response:', res.data);
+    console.log('📦 2. Verify OTP Response:', res.data);
     
-    // OTP সঠিক হলে ব্যাকএন্ড থেকে নতুন resetToken আসবে
+    // ✅ FIX: Save the NEW resetToken returned from step 2 into cookie
     if (res.data?.data?.resetToken && typeof window !== 'undefined') {
       const newToken = res.data.data.resetToken;
-      sessionStorage.setItem('resetToken', newToken);
-      console.log('✅ 2. New Reset Token Saved to sessionStorage:', newToken);
-      
-      // নতুন টোকেনের expiry চেক করুন
-      try {
-        const base64Url = newToken.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const decoded = JSON.parse(atob(base64));
-        console.log('⏰ 2. New Token Expiry:', new Date(decoded.exp * 1000).toLocaleString());
-      } catch(e) {
-        console.log('⚠️ 2. Could not decode new token');
-      }
+      setCookie('resetToken', newToken, 1);
+      console.log('✅ 2. New Reset Token Saved to Cookie');
     }
     
     return res.data;
@@ -218,17 +223,24 @@ export const verifyForgotPasswordOTP = async (payload: {
 };
 
 // ─── Reset Password ───────────────────────────────────────────────────────────
-// Step 3: নতুন পাসওয়ার্ড সেট করুন
 export const resetPassword = async (payload: {
   newPassword: string;
   confirmPassword: string;
-  resetToken: string;
+  resetToken?: string;
 }): Promise<ApiResponse<null>> => {
   try {
-    console.log('🔑 3. Reset Token being used:', payload.resetToken);
-    console.log('🔐 3. New Password:', payload.newPassword);
+    let resetToken = payload.resetToken || getCookie('resetToken');
     
-    // Postman এর মতো Headers এ token পাঠান, Body তে শুধু পাসওয়ার্ড
+    console.log('🔄 3. Reset Password - Token:', resetToken?.substring(0, 50) + '...');
+    
+    if (!resetToken) {
+      throw new Error('Reset token not found. Please request password reset again.');
+    }
+    
+    resetToken = resetToken.trim();
+
+    // ✅ FIX: Use `token` header instead of `Authorization: Bearer`
+    // Backend reads req.headers.token, not Authorization header
     const res = await apiClient.post(
       '/auth/reset-password',
       {
@@ -237,19 +249,18 @@ export const resetPassword = async (payload: {
       },
       {
         headers: {
-          token: payload.resetToken, // Header এ token
+          token: resetToken,
         },
         skipAuth: true,
       } as unknown as CustomAxiosRequestConfig
     );
     
-    console.log('📦 3. Reset Password Full Response:', res.data);
+    console.log('✅ 3. Reset Password Success:', res.data);
     
-    // সফল হলে sessionStorage থেকে token মুছে দিন
     if (res.data?.success && typeof window !== 'undefined') {
-      sessionStorage.removeItem('resetToken');
-      sessionStorage.removeItem('resetEmail');
-      console.log('✅ 3. Reset successful! Tokens cleared from sessionStorage');
+      removeCookie('resetToken');
+      removeCookie('resetEmail');
+      console.log('✅ 3. Reset successful! Tokens cleared');
     }
     
     return res.data;
@@ -266,10 +277,14 @@ export const changePassword = async (payload: {
   confirmPassword: string;
 }): Promise<ApiResponse<null>> => {
   try {
+    console.log('🔄 Change Password Request - Using access_token from cookie');
+    
     const res = await apiClient.patch('/auth/change-password', payload);
+    
+    console.log('✅ Change Password Success:', res.data);
     return res.data;
   } catch (error: any) {
-    console.error('Change password error:', error);
+    console.error('❌ Change password error:', error.response?.data || error);
     throw error;
   }
 };
@@ -280,7 +295,7 @@ export const refreshToken = async (): Promise<ApiResponse<{ access_token: string
     const res = await apiClient.get('/auth/refresh-token');
     if (res.data?.data?.access_token) {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', res.data.data.access_token);
+        setCookie('access_token', res.data.data.access_token, 7);
       }
     }
     return res.data;
@@ -300,8 +315,11 @@ export const logout = async (): Promise<ApiResponse<null>> => {
     throw error;
   } finally {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
+      removeCookie('access_token');
+      removeCookie('user');
+      removeCookie('preAuthToken');
+      removeCookie('resetToken');
+      removeCookie('resetEmail');
     }
   }
 };
@@ -316,8 +334,11 @@ export const logoutAllDevices = async (): Promise<ApiResponse<null>> => {
     throw error;
   } finally {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
+      removeCookie('access_token');
+      removeCookie('user');
+      removeCookie('preAuthToken');
+      removeCookie('resetToken');
+      removeCookie('resetEmail');
     }
   }
 };
@@ -353,8 +374,9 @@ export const verifyLoginOTP = async (payload: {
     const res = await apiClient.post('/auth/verify-login-otp', payload);
     if (res.data?.data?.access_token) {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', res.data.data.access_token);
-        localStorage.setItem('user', JSON.stringify(res.data.data.user));
+        setCookie('access_token', res.data.data.access_token, 7);
+        setCookie('user', JSON.stringify(res.data.data.user), 7);
+        removeCookie('preAuthToken');
       }
     }
     return res.data;
@@ -362,4 +384,33 @@ export const verifyLoginOTP = async (payload: {
     console.error('Verify login OTP error:', error);
     throw error;
   }
+};
+
+// ─── Utility Functions for Cookie Access ─────────────────────────────────────
+export const getAccessTokenFromCookie = (): string | null => {
+  return getCookie('access_token');
+};
+
+export const getUserFromCookie = (): User | null => {
+  const userStr = getCookie('user');
+  if (userStr) {
+    try {
+      return JSON.parse(userStr);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+export const getPreAuthTokenFromCookie = (): string | null => {
+  return getCookie('preAuthToken');
+};
+
+export const getResetTokenFromCookie = (): string | null => {
+  return getCookie('resetToken');
+};
+
+export const isAuthenticated = (): boolean => {
+  return !!getCookie('access_token');
 };

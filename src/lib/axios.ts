@@ -9,6 +9,34 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
 
 console.log("API BASE URL =", BASE_URL);
 
+// ─── Cookie Helper Functions ─────────────────────────────────────────────────
+const getCookie = (name: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+};
+
+const setCookie = (name: string, value: string, days: number = 7) => {
+  if (typeof window === 'undefined') return;
+  
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  
+  // production এ secure flag
+  if (process.env.NODE_ENV === 'production') {
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;Secure;SameSite=Lax`;
+  }
+};
+
+const removeCookie = (name: string) => {
+  if (typeof window === 'undefined') return;
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+};
+
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -26,7 +54,8 @@ apiClient.interceptors.request.use(
     }
     
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
+      // কুকি থেকে টোকেন নিন
+      const token = getCookie('access_token');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -50,7 +79,6 @@ const processQueue = (error: unknown, token: string | null = null) => {
   });
   failedQueue = [];
 };
-
 
 const PUBLIC_ROUTES = [
   '/auth/login',
@@ -101,7 +129,8 @@ apiClient.interceptors.response.use(
 
         if (newToken) {
           if (typeof window !== 'undefined') {
-            localStorage.setItem('access_token', newToken);
+            // কুকিতে নতুন টোকেন সেট করুন
+            setCookie('access_token', newToken, 7);
           }
           apiClient.defaults.headers.common.Authorization = `Bearer ${newToken}`;
           processQueue(null, newToken);
@@ -112,8 +141,13 @@ apiClient.interceptors.response.use(
         processQueue(refreshError, null);
         // Refresh fail করলে logout করো
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('user');
+          // সব কুকি清除 করুন
+          removeCookie('access_token');
+          removeCookie('user');
+          removeCookie('preAuthToken');
+          removeCookie('resetToken');
+          removeCookie('resetEmail');
+          
           // Login page এ redirect (refresh loop এড়াতে)
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
@@ -132,3 +166,6 @@ apiClient.interceptors.response.use(
 export default apiClient;
 
 export type { CustomAxiosRequestConfig };
+
+// ─── Export Cookie Helpers for use in other files ────────────────────────────
+export { getCookie, setCookie, removeCookie };
