@@ -42,8 +42,7 @@ const LoginPage = () => {
         const userName = `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim();
         if (userName) sessionStorage.setItem('userName', userName);
 
-        // ✅ status PENDING মানে onboarding শেষ হয়নি
-        // getMe দিয়ে কোন step এ আছে check করো
+   
         if (userData?.status === 'PENDING') {
           try {
             const meRes = await getMe();
@@ -58,17 +57,17 @@ const LoginPage = () => {
             };
 
             if (!termSheetGenie || nextStep === 'UPDATE_TERM_SHEET_GENIE') {
-              // Role select করা হয়নি
+             
               router.push('/role-selection');
             } else if (nextStep === 'CREATE_ORGANIZATION') {
-              // Role আছে, org বাকি
+            
               sessionStorage.setItem('userRole', roleReverseMap[termSheetGenie] || 'investor');
               router.push('/additional-info');
             } else {
               router.push('/investor-admin/my-funds');
             }
           } catch {
-            // getMe fail করলে safe fallback
+         
             router.push('/role-selection');
           }
         } else {
@@ -87,7 +86,6 @@ const LoginPage = () => {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen w-full bg-white overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 h-screen">

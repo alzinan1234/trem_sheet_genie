@@ -5,7 +5,7 @@ import { BarChart3, FileText, Users } from 'lucide-react';
 
 const features = [
   {
-    title: "Advanced Simulations MMMMMMMMMMMM",
+    title: "Advanced Simulations",
     description: "Model multiple investment scenarios and understand the impact on ownership, dilution, and returns.",
     icon: <BarChart3 size={24} className="text-[#0A32B6]" />,
   },
